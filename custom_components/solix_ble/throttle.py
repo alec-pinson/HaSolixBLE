@@ -36,6 +36,7 @@ class SolixThrottle:
         self._last_fanout: float | None = None
         self._pending = False
         self._unsub_timer: CALLBACK_TYPE | None = None
+        self._last_available: bool = device.available
 
         device.add_callback(self._device_updated)
 
@@ -53,6 +54,11 @@ class SolixThrottle:
 
         # Throttling disabled
         if self._interval <= 0:
+            self._fan_out()
+            return
+
+        # Availability transitions must never wait for the window
+        if self._device.available != self._last_available:
             self._fan_out()
             return
 
@@ -80,6 +86,7 @@ class SolixThrottle:
 
         self._last_fanout = time.monotonic()
         self._pending = False
+        self._last_available = self._device.available
 
         for callback in self._callbacks:
             try:

@@ -146,3 +146,58 @@ async def test_update_after_window_fans_out_immediately(
     fire(device)
 
     assert callback.call_count == 2
+
+
+async def test_availability_change_bypasses_window(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A device going unavailable is published immediately, mid-window."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    device.available = False
+    fire(device)
+
+    assert callback.call_count == 2
+
+
+async def test_availability_bypass_does_not_fire_on_first_update(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Availability unchanged since construction is not treated as a transition."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    fire(device)
+
+    assert callback.call_count == 1
+
+
+async def test_availability_bypass_restarts_window(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A bypass restarts the window rather than leaving the old one running."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    device.available = False
+    fire(device)
+
+    assert callback.call_count == 2
+
+    freezer.tick(timedelta(seconds=1))
+    fire(device)
+
+    assert callback.call_count == 2
