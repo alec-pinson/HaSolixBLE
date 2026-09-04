@@ -56,7 +56,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Sensors."""
 
-    device = config_entry.runtime_data
+    device = config_entry.runtime_data.device
     sensors: list[SolixSensorEntity] = []
 
     # Charging status sensor
