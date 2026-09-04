@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING
+
+from homeassistant.helpers.event import async_call_later
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import CALLBACK_TYPE, HomeAssistant
     from SolixBLE import SolixBLEDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +33,9 @@ class SolixThrottle:
         self._device = device
         self._interval = interval
         self._callbacks: list[Callable[[], None]] = []
+        self._last_fanout: float | None = None
+        self._pending = False
+        self._unsub_timer: CALLBACK_TYPE | None = None
 
         device.add_callback(self._device_updated)
 
@@ -44,10 +50,37 @@ class SolixThrottle:
 
     def _device_updated(self) -> None:
         """Run when the device reports a state change."""
-        self._fan_out()
+
+        # Throttling disabled
+        if self._interval <= 0:
+            self._fan_out()
+            return
+
+        # First update, or the window has elapsed
+        now = time.monotonic()
+        if self._last_fanout is None or now - self._last_fanout >= self._interval:
+            self._fan_out()
+            return
+
+        # Inside the window, hold it for the flush
+        self._pending = True
+        if self._unsub_timer is None:
+            remaining = self._interval - (now - self._last_fanout)
+            self._unsub_timer = async_call_later(self._hass, remaining, self._flush)
+
+    def _flush(self, _now: object) -> None:
+        """Run when the throttle window closes."""
+        self._unsub_timer = None
+
+        if self._pending:
+            self._fan_out()
 
     def _fan_out(self) -> None:
-        """Run every registered subscriber."""
+        """Run every registered subscriber and restart the window."""
+
+        self._last_fanout = time.monotonic()
+        self._pending = False
+
         for callback in self._callbacks:
             try:
                 callback()
