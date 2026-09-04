@@ -37,6 +37,7 @@ class SolixThrottle:
         self._pending = False
         self._unsub_timer: CALLBACK_TYPE | None = None
         self._last_available: bool = device.available
+        self._shutdown = False
 
         device.add_callback(self._device_updated)
 
@@ -48,6 +49,27 @@ class SolixThrottle:
         """De-register a subscriber."""
         if callback in self._callbacks:
             self._callbacks.remove(callback)
+
+    def set_interval(self, interval: float) -> None:
+        """Apply a new throttle interval, flushing anything currently held."""
+
+        self._interval = interval
+        self._cancel_timer()
+
+        if self._pending:
+            self._fan_out()
+
+    def async_shutdown(self) -> None:
+        """Stop the throttle and release everything it holds."""
+
+        self._cancel_timer()
+
+        if not self._shutdown:
+            self._shutdown = True
+            self._device.remove_callback(self._device_updated)
+
+        self._pending = False
+        self._callbacks = []
 
     def _device_updated(self) -> None:
         """Run when the device reports a state change."""
@@ -80,6 +102,13 @@ class SolixThrottle:
 
         if self._pending:
             self._fan_out()
+
+    def _cancel_timer(self) -> None:
+        """Cancel a pending flush timer if there is one."""
+
+        if self._unsub_timer is not None:
+            self._unsub_timer()
+            self._unsub_timer = None
 
     def _fan_out(self) -> None:
         """Run every registered subscriber and restart the window."""

@@ -201,3 +201,116 @@ async def test_availability_bypass_restarts_window(
     fire(device)
 
     assert callback.call_count == 2
+
+
+async def test_set_interval_flushes_a_held_update(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Changing the interval publishes anything currently held."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    fire(device)
+
+    assert callback.call_count == 1
+
+    throttle.set_interval(60)
+
+    assert callback.call_count == 2
+
+
+async def test_set_interval_with_nothing_held_does_not_fan_out(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Changing the interval with no held update publishes nothing."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    throttle.set_interval(60)
+
+    assert callback.call_count == 1
+
+
+async def test_set_interval_applies_the_new_window(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Subsequent updates honour the new interval."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    throttle.set_interval(0)
+    fire(device)
+    fire(device)
+
+    assert callback.call_count == 3
+
+
+async def test_shutdown_deregisters_from_device(hass: HomeAssistant) -> None:
+    """Shutdown removes the throttle's callback from the device."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 0)
+
+    throttle.async_shutdown()
+
+    assert device.remove_callback.call_count == 1
+    assert device.remove_callback.call_args[0][0] == device.add_callback.call_args[0][0]
+
+
+async def test_shutdown_cancels_a_pending_timer(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A held update is not published after shutdown."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    callback = MagicMock()
+    throttle.add_callback(callback)
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    fire(device)
+
+    throttle.async_shutdown()
+
+    freezer.tick(timedelta(seconds=30))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert callback.call_count == 1
+
+
+async def test_shutdown_is_idempotent(hass: HomeAssistant) -> None:
+    """Calling shutdown twice does not raise."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 0)
+
+    throttle.async_shutdown()
+    throttle.async_shutdown()
+
+    assert device.remove_callback.call_count == 1
+
+
+async def test_raising_subscriber_does_not_block_the_others(
+    hass: HomeAssistant,
+) -> None:
+    """One subscriber raising still lets the rest run."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 0)
+    first = MagicMock(side_effect=RuntimeError("boom"))
+    second = MagicMock()
+    throttle.add_callback(first)
+    throttle.add_callback(second)
+
+    fire(device)
+
+    assert first.call_count == 1
+    assert second.call_count == 1
