@@ -1,13 +1,22 @@
 """Test the update throttle for the SolixBLE integration."""
 
+import asyncio
+from contextlib import ExitStack
 from datetime import timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
+from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
+from custom_components.solix_ble.const import CONF_UPDATE_INTERVAL, DOMAIN
 from custom_components.solix_ble.throttle import SolixThrottle
+
+from . import MOCK_C300_DETAILS
 
 
 def make_device() -> MagicMock:
@@ -314,3 +323,50 @@ async def test_raising_subscriber_does_not_block_the_others(
 
     assert first.call_count == 1
     assert second.call_count == 1
+
+
+def c300_mocks(stack: ExitStack) -> None:
+    """Enter the patches needed to set up a mock C300 config entry."""
+
+    stack.enter_context(
+        patch(
+            "custom_components.solix_ble.async_ble_device_from_address",
+            return_value=MOCK_C300_DETAILS.get_ble_device(),
+        )
+    )
+    stack.enter_context(
+        patch("custom_components.solix_ble.async_scanner_count", return_value=1)
+    )
+    stack.enter_context(patch("SolixBLE.C300.connect", side_effect=[True]))
+    stack.enter_context(patch("SolixBLE.C300.connected", side_effect=[True]))
+    stack.enter_context(patch("SolixBLE.C300.negotiated", side_effect=[True]))
+    stack.enter_context(patch("SolixBLE.SolixBLEDevice.available", side_effect=[True]))
+
+
+async def test_entry_options_are_applied_to_the_throttle(hass: HomeAssistant) -> None:
+    """The configured interval reaches the live throttle, and changes apply in place."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=MOCK_C300_DETAILS.name,
+        unique_id=MOCK_C300_DETAILS.addr.lower(),
+        data={"model": MOCK_C300_DETAILS.model_class},
+        options={CONF_UPDATE_INTERVAL: 30},
+    )
+    entry.add_to_hass(hass)
+
+    with ExitStack() as stack:
+        c300_mocks(stack)
+
+        assert await async_setup_component(hass, DOMAIN, {}) is True
+        await hass.async_block_till_done()
+        await asyncio.sleep(1)
+
+        assert entry.runtime_data.throttle._interval == 30
+
+        hass.config_entries.async_update_entry(
+            entry, options={CONF_UPDATE_INTERVAL: 60}
+        )
+        await hass.async_block_till_done()
+
+        assert entry.runtime_data.throttle._interval == 60
