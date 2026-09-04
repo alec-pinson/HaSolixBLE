@@ -41,13 +41,13 @@ from .const import (
     PORT_STATUS_STRINGS,
     USAGE_MODE_SB2_STRINGS,
 )
-from .throttle import SolixThrottle
 
 _LOGGER = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
     from . import SolixBLEConfigEntry
+    from .throttle import SolixThrottle
 
 
 async def async_setup_entry(

@@ -82,12 +82,13 @@ def get_power_station_class(model: Models) -> SolixBLEDevice:
 
 
 async def _async_options_updated(
-    hass: HomeAssistant, entry: SolixBLEConfigEntry
+    hass: HomeAssistant,
+    entry: SolixBLEConfigEntry,
 ) -> None:
     """Apply changed options without reconnecting to the device."""
 
     entry.runtime_data.throttle.set_interval(
-        entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
+        entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
     )
 
 
@@ -164,7 +165,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolixBLEConfigEntry) ->
     entry.runtime_data.throttle.async_shutdown()
 
     await entry.runtime_data.device.disconnect()
-
-    entry.runtime_data = None
 
     return unload_ok_sensor and unload_ok_switch

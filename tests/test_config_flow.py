@@ -365,7 +365,8 @@ async def test_options_flow_sets_update_interval(hass: HomeAssistant) -> None:
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_UPDATE_INTERVAL: 30}
+        result["flow_id"],
+        user_input={CONF_UPDATE_INTERVAL: 30},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY

@@ -100,7 +100,8 @@ class SolixBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_confirm()
 
     async def async_step_confirm(
-        self, user_input: dict[str, Any] | None = None
+        self,
+        user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
         """Confirm a single device."""
 
@@ -155,7 +156,8 @@ class SolixBLEOptionsFlow(OptionsFlow):
     """Handle options for a configured device."""
 
     async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
+        self,
+        user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
         """Manage the options."""
 
@@ -169,7 +171,8 @@ class SolixBLEOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_UPDATE_INTERVAL,
                         default=self.config_entry.options.get(
-                            CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                            CONF_UPDATE_INTERVAL,
+                            DEFAULT_UPDATE_INTERVAL,
                         ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
@@ -178,7 +181,7 @@ class SolixBLEOptionsFlow(OptionsFlow):
                             step=1,
                             unit_of_measurement="s",
                             mode=selector.NumberSelectorMode.BOX,
-                        )
+                        ),
                     ),
                 }
             ),

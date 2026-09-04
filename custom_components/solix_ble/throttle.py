@@ -25,7 +25,10 @@ class SolixThrottle:
     """
 
     def __init__(
-        self, hass: HomeAssistant, device: SolixBLEDevice, interval: float
+        self,
+        hass: HomeAssistant,
+        device: SolixBLEDevice,
+        interval: float,
     ) -> None:
         """Initialize the throttle and subscribe to the device."""
 
@@ -122,5 +125,5 @@ class SolixThrottle:
                 callback()
             except Exception:
                 _LOGGER.exception(
-                    f"Exception raised by a throttled state change callback '{callback}'!"
+                    f"Exception raised by a throttled callback '{callback}'!",
                 )
