@@ -1,6 +1,7 @@
 """Test the update throttle for the SolixBLE integration."""
 
 import asyncio
+import threading
 from contextlib import ExitStack
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
@@ -121,6 +122,26 @@ async def test_held_update_is_flushed_when_window_closes(
     await hass.async_block_till_done()
 
     assert callback.call_count == 2
+
+
+async def test_flush_runs_on_the_event_loop(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A flushed update is published from the event loop thread."""
+    device = make_device()
+    throttle = SolixThrottle(hass, device, 30)
+    threads: list[int] = []
+    throttle.add_callback(lambda: threads.append(threading.get_ident()))
+
+    fire(device)
+    freezer.tick(timedelta(seconds=1))
+    fire(device)
+
+    freezer.tick(timedelta(seconds=30))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert threads == [hass.loop_thread_id, hass.loop_thread_id]
 
 
 async def test_no_flush_when_nothing_was_held(

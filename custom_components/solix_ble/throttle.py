@@ -6,6 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ class SolixThrottle:
             remaining = self._interval - (now - self._last_fanout)
             self._unsub_timer = async_call_later(self._hass, remaining, self._flush)
 
+    @callback
     def _flush(self, _now: object) -> None:
         """Run when the throttle window closes."""
         self._unsub_timer = None
@@ -120,10 +122,10 @@ class SolixThrottle:
         self._pending = False
         self._last_available = self._device.available
 
-        for callback in self._callbacks:
+        for subscriber in self._callbacks:
             try:
-                callback()
+                subscriber()
             except Exception:
                 _LOGGER.exception(
-                    f"Exception raised by a throttled callback '{callback}'!",
+                    f"Exception raised by a throttled callback '{subscriber}'!",
                 )
